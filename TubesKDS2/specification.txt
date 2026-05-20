@@ -1,0 +1,61 @@
+IF3211 Domain-Specific Computation
+Spesifikasi Tugas Proyek
+Tujuan
+Mahasiswa dapat menunjukkan pemahaman tentang dasar-dasar biologi dalam
+mengembangkan solusi berbasis komputing.
+Kategori Topik
+Mahasiswa bekerja secara berkelompok (3-4 orang) untuk mengembangkan solusi
+bebrbasis komputasi biologi. Setiap kelompok memilih salah satu topik berikut:
+1. Mol, Molaritas, dan Larutan Biologis
+2. Makromolekul: Karbohidrat, Lipid, dan Protein
+3. DNA Sequence Analysis & Sequence Alignment
+4. Sekuens DNA & RNA
+5. Membran Plasma dan Transport Membran
+6. Respirasi Sel & Produksi ATP
+7. Siklus sel dan meiosis
+8. Proses evolusi dan seleksi alam
+Ketua kelas mengatur agar setidap topik tersebar merata di kelasnya.
+Luaran
+1. Kode Program: Implementasi algoritma dalam bahasa Python.
+Pastikan tautan untuk kode bisa diakses oleh dosen dan asisten.
+2. Laporan dalam bentuk tulisan ilmiah.
+Format bebas, maksimal 6 halaman.
+a. Pendahuluan: konsep biologi terkait, metode komputasi terkait, tinjauan
+pustaka karya, rumusan pertanyaan penelitian, tujuan/kontribusi.
+b. Metode: penjelasan metode komputasi, lebih baik jika dilengkapi dengan
+bagan alir (flowchart) dan komponen yang digunakan, tautan ke kode program.
+c. Hasil & Diskusi: penjelasan hasil kuantitatif dan kualitatif, analisis hasil dalam
+konteks konsep biologi.
+d. Kesimpulan: menjelaskan bagaimana penelitian ini berkontribusi (secara
+objektif), serta memberikan saran untuk penelitian di masa depan.
+e. Daftar Pustaka
+3. Presentasi hasil proyek pada akhir semester (video).
+Tujuan: Mahasiswa mendemonstrasikan hasil pengembangan proyek dalam bentuk
+video.
+a. Penjelasan singkat melalui slide presentasi yang setidaknya mencakup latar
+belakang masalah, metode/algoritma, dataset, dan analisis hasil pengujian.
+b. Demo program singkat yang menampilkan hasil pengujian.
+c. Setiap anggota kelompok harus tampil dalam video.
+d. Durasi maksimum video adalah 10 menit.
+e. Tautan rekaman video dituliskan di laporan.
+Komponen Penilaian
+1. Penerapan dasar-dasar biologi dalam pengembangan model komputasi.
+2. Perumusan pertanyaan penelitian yang jelas berdasarkan kajian pustaka.
+3. Kontribusi solusi yang diusulkan terhadap pengetahuan.
+4. Usaha dan ketelitian dalam pengembangan model komputasi, termasuk analisis
+hasil interpretasi.
+5. Kejelasan dan efektivitas dalam menyajikan hasil komputasi serta manfaatnya.
+Rincian Penilain Proyek
+• Konsep Biologi: ketepatan dan kedalaman pengetahuan biologi yang diterapkan.
+• Analisis Komputasi: Ketepatan serta ketelitian pemrosesan data dan model.
+• Inovasi & Problem-Solving: Kreativitas dan efektivitas solusi yang diusulkan.
+• Kualitas Laporan: Organisasi, kohrensi, dan kelengkapandokumentasi tertulis.
+• Kerja Tim: kolaborasi, pembagian tugas dan kontribusi keseluruhan anggita tim.
+• Presentasi: Kejelasan, daya tarik dankemampuan menyampaikan materi dengan
+efektif.
+Linimasa
+29 April 2026: Rilis tugas
+6 Mei 2026: Pengumpulan data kelompok, topik dan judul.
+29 Mei 2026: Pengumpulan laporan, kode, file dan video presentasi
+*Tempat atau tautan pengumpulan ditentukan oleh dosen kelas masing-masing.
+Jika ada pertanyaan, bisa ditanyakan ke dosen pengampu kelas.
