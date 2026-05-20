@@ -4,518 +4,156 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cell Cycle Intelligence System</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: #0a0e17;
-            color: #e0e0e0;
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 2rem 1.5rem;
-        }
-
-        /* Header */
-        header {
-            text-align: center;
-            margin-bottom: 2.5rem;
-        }
-
-        header h1 {
-            font-size: 1.8rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #00E676, #448AFF, #E040FB);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0.5rem;
-        }
-
-        header p {
-            color: #888;
-            font-size: 0.95rem;
-        }
-
-        /* Upload area */
-        .upload-section {
-            background: #141a2a;
-            border: 2px dashed #2a3a5a;
-            border-radius: 16px;
-            padding: 3rem 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-bottom: 2rem;
-        }
-
-        .upload-section:hover,
-        .upload-section.dragover {
-            border-color: #448AFF;
-            background: #1a2240;
-        }
-
-        .upload-section svg {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 1rem;
-            color: #448AFF;
-        }
-
-        .upload-section h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-            color: #ccc;
-        }
-
-        .upload-section p {
-            color: #666;
-            font-size: 0.85rem;
-        }
-
-        #file-input {
-            display: none;
-        }
-
-        /* Preview */
-        .preview-container {
-            display: none;
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .preview-container img {
-            max-width: 200px;
-            max-height: 200px;
-            border-radius: 12px;
-            border: 2px solid #2a3a5a;
-        }
-
-        .preview-container .filename {
-            margin-top: 0.5rem;
-            color: #888;
-            font-size: 0.85rem;
-        }
-
-        /* Classify button */
-        .btn-classify {
-            display: none;
-            width: 100%;
-            padding: 1rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #448AFF, #7c4dff);
-            color: white;
-            cursor: pointer;
-            transition: transform 0.2s, opacity 0.2s;
-            margin-bottom: 2rem;
-        }
-
-        .btn-classify:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
-        }
-
-        .btn-classify:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Loading */
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-            color: #888;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #2a3a5a;
-            border-top-color: #448AFF;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Results */
-        .results {
-            display: none;
-            background: #141a2a;
-            border-radius: 16px;
-            padding: 2rem;
-            animation: fadeIn 0.4s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .result-header {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-
-        .predicted-phase {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.3rem;
-        }
-
-        .confidence-text {
-            color: #888;
-            font-size: 0.9rem;
-        }
-
-        .phase-info {
-            display: flex;
-            justify-content: center;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .info-chip {
-            background: #1a2240;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-        }
-
-        .info-chip span {
-            color: #888;
-        }
-
-        /* Probability bars */
-        .prob-bars {
-            margin-top: 1.5rem;
-        }
-
-        .prob-bars h4 {
-            font-size: 0.9rem;
-            color: #888;
-            margin-bottom: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .prob-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 0.6rem;
-            gap: 0.75rem;
-        }
-
-        .prob-label {
-            width: 90px;
-            font-size: 0.85rem;
-            text-align: right;
-            color: #aaa;
-        }
-
-        .prob-bar-bg {
-            flex: 1;
-            height: 24px;
-            background: #1a2240;
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .prob-bar-fill {
-            height: 100%;
-            border-radius: 6px;
-            transition: width 0.6s ease;
-        }
-
-        .prob-value {
-            width: 50px;
-            font-size: 0.8rem;
-            color: #888;
-        }
-
-        /* Status indicator */
-        .status-bar {
-            position: fixed;
-            bottom: 1rem;
-            right: 1rem;
-            background: #141a2a;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            color: #666;
-            border: 1px solid #2a3a5a;
-        }
-
-        .status-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 6px;
-            background: #666;
-        }
-
-        .status-dot.online { background: #00E676; }
-        .status-dot.offline { background: #FF1744; }
-
-        /* Error */
-        .error-msg {
-            display: none;
-            background: #2a1520;
-            border: 1px solid #FF1744;
-            border-radius: 12px;
-            padding: 1rem 1.5rem;
-            color: #ff6b6b;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 600px) {
-            .container { padding: 1rem; }
-            header h1 { font-size: 1.4rem; }
-            .upload-section { padding: 2rem 1rem; }
-            .phase-info { flex-direction: column; align-items: center; }
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Cell Cycle Intelligence System</h1>
-            <p>Upload a fluorescence microscopy image to classify its cell cycle phase</p>
-        </header>
+    <!-- Main layout: dashboard left, inference sidebar right -->
+    <div class="layout">
+        <!-- LEFT: Dashboard -->
+        <main class="dashboard">
+            <header>
+                <h1>Cell Cycle Intelligence System</h1>
+                <p class="subtitle">Sistem Analisis Siklus Sel Berbasis Pembelajaran Mendalam dengan Validasi Biologi</p>
+                <div class="header-actions">
+                    <button class="btn-run" id="btn-run-all">&#9654; Run Full Simulation</button>
+                    <span class="status-indicator">
+                        <span class="status-dot" id="status-dot"></span>
+                        <span id="status-text">Checking...</span>
+                    </span>
+                </div>
+            </header>
 
-        <!-- Upload -->
-        <div class="upload-section" id="upload-area">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-            </svg>
-            <h3>Drop cell image here or click to browse</h3>
-            <p>Supports PNG, JPG, TIFF</p>
-        </div>
-        <input type="file" id="file-input" accept="image/*">
-
-        <!-- Preview -->
-        <div class="preview-container" id="preview">
-            <img id="preview-img" alt="Preview">
-            <div class="filename" id="filename"></div>
-        </div>
-
-        <!-- Classify button -->
-        <button class="btn-classify" id="btn-classify">Classify Phase</button>
-
-        <!-- Error -->
-        <div class="error-msg" id="error-msg"></div>
-
-        <!-- Loading -->
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Classifying...</p>
-        </div>
-
-        <!-- Results -->
-        <div class="results" id="results">
-            <div class="result-header">
-                <div class="predicted-phase" id="predicted-phase"></div>
-                <div class="confidence-text" id="confidence-text"></div>
-            </div>
-            <div class="phase-info" id="phase-info"></div>
-            <div class="prob-bars">
-                <h4>Phase Probabilities</h4>
-                <div id="prob-bars-container"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Status -->
-    <div class="status-bar">
-        <span class="status-dot" id="status-dot"></span>
-        <span id="status-text">Checking...</span>
-    </div>
-
-    <script>
-        // Phase colors matching the Python config
-        const PHASE_COLORS = {
-            "G1": "#00E676",
-            "S": "#448AFF",
-            "G2": "#E040FB",
-            "Prophase": "#FF9100",
-            "Metaphase": "#FF1744",
-            "Anaphase": "#F50057",
-            "Telophase": "#00E5FF"
-        };
-
-        const uploadArea = document.getElementById("upload-area");
-        const fileInput = document.getElementById("file-input");
-        const preview = document.getElementById("preview");
-        const previewImg = document.getElementById("preview-img");
-        const filenameEl = document.getElementById("filename");
-        const btnClassify = document.getElementById("btn-classify");
-        const loading = document.getElementById("loading");
-        const results = document.getElementById("results");
-        const errorMsg = document.getElementById("error-msg");
-
-        let selectedFile = null;
-
-        // ── Upload handling ──────────────────────────────
-
-        uploadArea.addEventListener("click", () => fileInput.click());
-
-        uploadArea.addEventListener("dragover", (e) => {
-            e.preventDefault();
-            uploadArea.classList.add("dragover");
-        });
-
-        uploadArea.addEventListener("dragleave", () => {
-            uploadArea.classList.remove("dragover");
-        });
-
-        uploadArea.addEventListener("drop", (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove("dragover");
-            if (e.dataTransfer.files.length > 0) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        fileInput.addEventListener("change", () => {
-            if (fileInput.files.length > 0) {
-                handleFile(fileInput.files[0]);
-            }
-        });
-
-        function handleFile(file) {
-            selectedFile = file;
-            const url = URL.createObjectURL(file);
-            previewImg.src = url;
-            filenameEl.textContent = file.name;
-            preview.style.display = "block";
-            btnClassify.style.display = "block";
-            results.style.display = "none";
-            errorMsg.style.display = "none";
-        }
-
-        // ── Classification ───────────────────────────────
-
-        btnClassify.addEventListener("click", async () => {
-            if (!selectedFile) return;
-
-            btnClassify.disabled = true;
-            loading.style.display = "block";
-            results.style.display = "none";
-            errorMsg.style.display = "none";
-
-            const formData = new FormData();
-            formData.append("image", selectedFile);
-
-            try {
-                const res = await fetch("/api/predict", {
-                    method: "POST",
-                    body: formData
-                });
-
-                const data = await res.json();
-
-                if (!res.ok) {
-                    throw new Error(data.error || "Classification failed");
-                }
-
-                showResults(data);
-            } catch (err) {
-                errorMsg.textContent = err.message;
-                errorMsg.style.display = "block";
-            } finally {
-                loading.style.display = "none";
-                btnClassify.disabled = false;
-            }
-        });
-
-        function showResults(data) {
-            const phase = data.predicted_phase;
-            const color = PHASE_COLORS[phase] || "#fff";
-
-            // Phase name
-            document.getElementById("predicted-phase").textContent = phase;
-            document.getElementById("predicted-phase").style.color = color;
-
-            // Confidence
-            const conf = (data.confidence * 100).toFixed(1);
-            document.getElementById("confidence-text").textContent =
-                `${conf}% confidence`;
-
-            // Info chips
-            const info = data.phase_info;
-            document.getElementById("phase-info").innerHTML = `
-                <div class="info-chip"><span>Category: </span>${info.category}</div>
-                <div class="info-chip"><span>Duration: </span>${info.duration_hours}h</div>
-                <div class="info-chip"><span>Cycle fraction: </span>${(info.fraction_of_cycle * 100).toFixed(1)}%</div>
-            `;
-
-            // Probability bars
-            const container = document.getElementById("prob-bars-container");
-            container.innerHTML = "";
-
-            const probs = data.probabilities;
-            for (const [phaseName, prob] of Object.entries(probs)) {
-                const pct = (prob * 100).toFixed(1);
-                const barColor = PHASE_COLORS[phaseName] || "#448AFF";
-                container.innerHTML += `
-                    <div class="prob-row">
-                        <div class="prob-label">${phaseName}</div>
-                        <div class="prob-bar-bg">
-                            <div class="prob-bar-fill" style="width: ${pct}%; background: ${barColor};"></div>
-                        </div>
-                        <div class="prob-value">${pct}%</div>
+            <!-- Layer 1: CNN Training Results -->
+            <section class="card" id="section-cnn">
+                <div class="card-header">
+                    <h2>Layer 1 &mdash; CNN Phase Classifier</h2>
+                    <span class="badge">ResNet-18</span>
+                </div>
+                <p class="desc">Test-set evaluation on real BBBC048 fluorescence microscopy data.</p>
+                <div class="loading" id="loading-cnn"><div class="spinner"></div></div>
+                <div class="card-body" id="results-cnn">
+                    <div class="metrics-row" id="cnn-metrics"></div>
+                    <div class="plots-row">
+                        <img id="cnn-confusion" class="plot-img" alt="Confusion Matrix">
+                        <img id="cnn-curves" class="plot-img" alt="Training Curves">
                     </div>
-                `;
-            }
+                </div>
+            </section>
 
-            results.style.display = "block";
-        }
+            <!-- Layer 1b: Grad-CAM samples -->
+            <section class="card" id="section-gradcam">
+                <div class="card-header">
+                    <h2>Grad-CAM Explainability</h2>
+                    <span class="badge">XAI</span>
+                </div>
+                <p class="desc">Spatial attention maps showing which regions the CNN uses for classification. Generated from random test-set samples.</p>
+                <div class="loading" id="loading-gradcam"><div class="spinner"></div></div>
+                <div class="card-body" id="results-gradcam">
+                    <img id="gradcam-batch" class="plot-img wide" alt="Grad-CAM Batch">
+                </div>
+            </section>
 
-        // ── Status check ─────────────────────────────────
+            <!-- Layer 2a: ODE -->
+            <section class="card" id="section-ode">
+                <div class="card-header">
+                    <h2>Layer 2a &mdash; Cyclin-CDK ODE Dynamics</h2>
+                    <span class="badge">Tyson-Novak</span>
+                </div>
+                <p class="desc">Simplified Cyclin B / CDK1 / APC oscillator. Provides biologically-grounded transition probabilities.</p>
+                <div class="loading" id="loading-ode"><div class="spinner"></div></div>
+                <div class="card-body" id="results-ode">
+                    <img id="ode-plot" class="plot-img wide" alt="ODE Dynamics">
+                    <details class="matrix-details">
+                        <summary>Transition Matrix</summary>
+                        <div id="transition-matrix" class="matrix-container"></div>
+                    </details>
+                </div>
+            </section>
 
-        async function checkStatus() {
-            const dot = document.getElementById("status-dot");
-            const text = document.getElementById("status-text");
-            try {
-                const res = await fetch("/api/status");
-                const data = await res.json();
-                if (data.model_loaded) {
-                    dot.className = "status-dot online";
-                    text.textContent = `Model ready (${data.device})`;
-                } else {
-                    dot.className = "status-dot offline";
-                    text.textContent = "Model not loaded";
-                }
-            } catch {
-                dot.className = "status-dot offline";
-                text.textContent = "Server offline";
-            }
-        }
+            <!-- Layer 2b: HMM -->
+            <section class="card" id="section-hmm">
+                <div class="card-header">
+                    <h2>Layer 2b &mdash; HMM Temporal Validation</h2>
+                    <span class="badge">Viterbi</span>
+                </div>
+                <p class="desc">ODE-derived transition constraints correct noisy CNN predictions over simulated time-lapse using real phase duration data.</p>
+                <div class="loading" id="loading-hmm"><div class="spinner"></div></div>
+                <div class="card-body" id="results-hmm">
+                    <div class="metrics-row" id="hmm-metrics"></div>
+                    <img id="hmm-plot" class="plot-img wide" alt="HMM Comparison">
+                </div>
+            </section>
 
-        checkStatus();
-        setInterval(checkStatus, 10000);
-    </script>
+            <!-- Layer 3: Checkpoint -->
+            <section class="card" id="section-checkpoint">
+                <div class="card-header">
+                    <h2>Layer 3 &mdash; Checkpoint Anomaly Detector</h2>
+                    <span class="badge">Biology Rules</span>
+                </div>
+                <p class="desc">Biology-derived rules detect G1/S restriction, G2/M damage, spindle assembly violations, and invalid transitions.</p>
+                <div class="loading" id="loading-checkpoint"><div class="spinner"></div></div>
+                <div class="card-body" id="results-checkpoint">
+                    <div class="metrics-row" id="checkpoint-metrics"></div>
+                    <img id="checkpoint-plot" class="plot-img wide" alt="Checkpoint Timeline">
+                    <div id="anomaly-list" class="anomaly-list"></div>
+                </div>
+            </section>
+
+            <!-- Population -->
+            <section class="card" id="section-population">
+                <div class="card-header">
+                    <h2>Population Analysis</h2>
+                    <span class="badge">Aggregate</span>
+                </div>
+                <p class="desc">Population-level metrics from test-set predictions: mitotic index, growth fraction, doubling time.</p>
+                <div class="loading" id="loading-population"><div class="spinner"></div></div>
+                <div class="card-body" id="results-population">
+                    <div class="metrics-row" id="pop-metrics"></div>
+                    <img id="population-plot" class="plot-img wide" alt="Population">
+                    <div id="pop-clinical" class="clinical-box"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- RIGHT: Inference Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Live Inference</h2>
+                <p>Upload a cell image for real-time classification</p>
+            </div>
+
+            <div class="upload-section" id="upload-area">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                </svg>
+                <span>Drop image or click</span>
+            </div>
+            <input type="file" id="file-input" accept="image/*">
+
+            <div class="preview-container" id="preview">
+                <img id="preview-img" alt="Preview">
+                <div class="filename" id="filename"></div>
+            </div>
+
+            <button class="btn-classify" id="btn-classify">Classify</button>
+            <div class="error-msg" id="error-msg"></div>
+            <div class="loading" id="loading-classify"><div class="spinner"></div></div>
+
+            <!-- Inference results -->
+            <div class="inference-results" id="results-classify">
+                <div class="infer-phase" id="predicted-phase"></div>
+                <div class="infer-confidence" id="confidence-text"></div>
+                <div class="infer-info" id="phase-info"></div>
+                <div class="infer-probs" id="prob-bars-container"></div>
+                <div class="infer-gradcam">
+                    <h4>Grad-CAM</h4>
+                    <img id="gradcam-img" alt="Grad-CAM">
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>

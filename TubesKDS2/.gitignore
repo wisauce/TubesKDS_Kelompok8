@@ -36,6 +36,9 @@ output/
 *.onnx
 *.h5
 
+# ── Keep frontend tracked ─────────────────────────────────
+!frontend/
+
 # ── IDE / Editor ─────────────────────────────────────────
 .vscode/
 .idea/
