@@ -11,74 +11,139 @@ const SEVERITY_COLORS = {
     "low": "#FFD600", "medium": "#FF9100", "high": "#FF1744", "critical": "#D500F9"
 };
 
-function show(id) { document.getElementById(id).style.display = "block"; }
-function hide(id) { document.getElementById(id).style.display = "none"; }
+// Biological interpretation per phase (static knowledge)
+const PHASE_BIO_INFO = {
+    "G1": {
+        description: "Fase pertumbuhan sel. Sel mensintesis protein dan organel, meningkatkan ukuran. Checkpoint G1/S (Rb/E2F) memastikan kondisi siap untuk replikasi DNA sebelum berkomitmen ke S fase.",
+        visual_cue: "🔬 Grad-CAM: perhatian pada nukleus spherical kecil-menengah dengan kromatin yang terdistribusi merata (2N DNA)."
+    },
+    "S": {
+        description: "Fase sintesis DNA. Replikasi DNA aktif berlangsung — konten DNA meningkat dari 2N ke 4N. Intensitas Hoechst 33342 meningkat progresif selama S fase.",
+        visual_cue: "🔬 Grad-CAM: intensitas nukleus lebih tinggi dan heterogen dibanding G1; batas nukleus masih utuh."
+    },
+    "G2": {
+        description: "Fase persiapan mitosis. Sel memverifikasi replikasi DNA selesai (checkpoint G2/M via ATM/ATR→Chk2→Wee1). CDK1/Cyclin B mulai terakumulasi.",
+        visual_cue: "🔬 Grad-CAM: nukleus lebih besar (4N DNA), intensitas Hoechst tinggi; sel mulai bulat."
+    },
+    "Prophase": {
+        description: "Mitosis dimulai. Kromosom mulai terkondensasi menjadi struktur kompak yang terlihat. CDK1/Cyclin B aktif menginduksi kondensasi. Membran nukleus mulai terurai.",
+        visual_cue: "🔬 Grad-CAM: struktur kromosom kondensasi mulai terlihat; nukleus terlihat 'berbintik' dan memadat."
+    },
+    "Metaphase": {
+        description: "Kromosom teralignment di bidang ekuatorial (metaphase plate). Spindle Assembly Checkpoint (SAC/Mad2) memastikan semua kinetochore terikat spindle sebelum anafase.",
+        visual_cue: "🔬 Grad-CAM: pola 'pelat' linear kromosom di tengah sel — aktivasi tinggi pada metaphase plate."
+    },
+    "Anaphase": {
+        description: "APC/C mengaktivasi separase → kohesi terpotong → kromatid sister terpisah menuju kutub berlawanan. CDK1 mulai diinaktivasi melalui degradasi Cyclin B.",
+        visual_cue: "🔬 Grad-CAM: dua cluster kromosom bergerak ke arah berlawanan — pola 'V' atau dua titik terpisah."
+    },
+    "Telophase": {
+        description: "Kromosom mencapai kutub. Membran nukleus terbentuk kembali di sekitar setiap set kromosom. Cyclin B terdegradasi hampir sempurna; APC/C aktif.",
+        visual_cue: "🔬 Grad-CAM: dua nukleus terpisah terbentuk; kromatin mulai dekondensasi; cleavage furrow terlihat."
+    }
+};
 
-// ═══ DASHBOARD: Run Full Simulation ══════════════════════
+function show(id) { const el = document.getElementById(id); if (el) el.style.display = "block"; }
+function hide(id) { const el = document.getElementById(id); if (el) el.style.display = "none"; }
+
+function showCardError(errorId, message) {
+    const el = document.getElementById(errorId);
+    if (!el) return;
+    el.textContent = message;
+    el.style.display = "flex";
+}
+function hideCardError(errorId) {
+    const el = document.getElementById(errorId);
+    if (el) el.style.display = "none";
+}
+
+// ═══ DASHBOARD: Run Full Simulation (SEQUENTIAL) ══════════
 
 document.getElementById("btn-run-all").addEventListener("click", runFullSimulation);
 
 async function runFullSimulation() {
     const btn = document.getElementById("btn-run-all");
-    btn.disabled = true; btn.textContent = "Running...";
+    btn.disabled = true;
 
-    // Run all in parallel
-    await Promise.all([
-        runCNN(),
-        runGradCAM(),
-        runODE(),
-        runHMM(),
-        runCheckpoint(),
-        runPopulation()
-    ]);
+    const steps = [
+        { fn: runCNN,        label: "1/6: Evaluasi CNN…" },
+        { fn: runGradCAM,    label: "2/6: Grad-CAM…" },
+        { fn: runODE,        label: "3/6: Solving ODE…" },
+        { fn: runHMM,        label: "4/6: Koreksi HMM…" },
+        { fn: runCheckpoint, label: "5/6: Deteksi Anomali…" },
+        { fn: runPopulation, label: "6/6: Analisis Populasi…" },
+    ];
 
-    btn.disabled = false; btn.textContent = "\u25B6 Run Full Simulation";
+    for (const step of steps) {
+        btn.textContent = `⏳ ${step.label}`;
+        await step.fn();
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = "&#9654; Run Full Simulation";
 }
 
 // ── Layer 1: CNN Results ─────────────────────────────────
 
 async function runCNN() {
-    show("loading-cnn"); hide("results-cnn");
+    show("loading-cnn"); hide("results-cnn"); hideCardError("error-cnn");
     try {
         const res = await fetch("/api/dashboard/cnn");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
         document.getElementById("cnn-metrics").innerHTML = `
-            <div class="metric-card"><div class="value" style="color:#00E676">${(data.test_accuracy*100).toFixed(1)}%</div><div class="label">Test Accuracy</div></div>
-            <div class="metric-card"><div class="value">${data.total_samples}</div><div class="label">Test Samples</div></div>
+            <div class="metric-card"><div class="value" style="color:#00E676">${(data.test_accuracy*100).toFixed(1)}%</div><div class="label">Test Accuracy</div><div class="sublabel">real test set</div></div>
+            <div class="metric-card"><div class="value">${data.total_samples}</div><div class="label">Test Samples</div><div class="sublabel">BBBC048</div></div>
             <div class="metric-card"><div class="value">${data.train_epochs}</div><div class="label">Epochs</div></div>
             <div class="metric-card"><div class="value" style="color:#448AFF">${data.model_params}</div><div class="label">Parameters</div></div>
         `;
+
+        // Key insight from confusion pairs
+        if (data.most_confused_pairs && data.most_confused_pairs.length > 0) {
+            const pairs = data.most_confused_pairs
+                .map(p => `<strong>${p.true_class} → ${p.predicted_class}</strong> (${p.count}×)`)
+                .join(" &nbsp;|&nbsp; ");
+            const hard = data.hard_classes ? data.hard_classes.join(", ") : "";
+            const insightEl = document.getElementById("cnn-insight");
+            insightEl.innerHTML = `
+                💡 <strong>Top confusions:</strong> ${pairs}<br>
+                ${hard ? `⚠ <strong>Kelas tersulit (F1 terendah):</strong> ${hard} — konsisten dengan overlap visual antar fase interphase.` : ""}
+            `;
+            insightEl.style.display = "block";
+        }
+
         document.getElementById("cnn-confusion").src = "data:image/png;base64," + data.confusion_matrix;
         document.getElementById("cnn-curves").src = "data:image/png;base64," + data.training_curves;
         show("results-cnn");
-    } catch(e) { console.error("CNN:", e); }
-    finally { hide("loading-cnn"); }
+    } catch(e) {
+        showCardError("error-cnn", `Gagal memuat CNN: ${e.message}`);
+    } finally { hide("loading-cnn"); }
 }
 
 // ── Grad-CAM batch ───────────────────────────────────────
 
 async function runGradCAM() {
-    show("loading-gradcam"); hide("results-gradcam");
+    show("loading-gradcam"); hide("results-gradcam"); hideCardError("error-gradcam");
     try {
         const res = await fetch("/api/dashboard/gradcam");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         document.getElementById("gradcam-batch").src = "data:image/png;base64," + data.gradcam_plot;
         show("results-gradcam");
-    } catch(e) { console.error("GradCAM:", e); }
-    finally { hide("loading-gradcam"); }
+    } catch(e) {
+        showCardError("error-gradcam", `Gagal memuat Grad-CAM: ${e.message}`);
+    } finally { hide("loading-gradcam"); }
 }
 
 // ── ODE ──────────────────────────────────────────────────
 
 async function runODE() {
-    show("loading-ode"); hide("results-ode");
+    show("loading-ode"); hide("results-ode"); hideCardError("error-ode");
     try {
         const res = await fetch("/api/dashboard/ode");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
         document.getElementById("ode-plot").src = "data:image/png;base64," + data.ode_plot;
 
@@ -96,79 +161,132 @@ async function runODE() {
         html += "</table>";
         document.getElementById("transition-matrix").innerHTML = html;
         show("results-ode");
-    } catch(e) { console.error("ODE:", e); }
-    finally { hide("loading-ode"); }
+    } catch(e) {
+        showCardError("error-ode", `Gagal memuat ODE: ${e.message}`);
+    } finally { hide("loading-ode"); }
 }
 
 // ── HMM ──────────────────────────────────────────────────
 
 async function runHMM() {
-    show("loading-hmm"); hide("results-hmm");
+    show("loading-hmm"); hide("results-hmm"); hideCardError("error-hmm");
     try {
         const res = await fetch("/api/dashboard/hmm");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
         document.getElementById("hmm-metrics").innerHTML = `
-            <div class="metric-card"><div class="value" style="color:#FF9100">${(data.cnn_accuracy*100).toFixed(1)}%</div><div class="label">CNN-Only</div></div>
-            <div class="metric-card"><div class="value" style="color:#00E676">${(data.hmm_accuracy*100).toFixed(1)}%</div><div class="label">HMM-Corrected</div></div>
-            <div class="metric-card"><div class="value" style="color:#448AFF">+${(data.improvement*100).toFixed(1)}%</div><div class="label">Improvement</div></div>
-            <div class="metric-card"><div class="value">${data.n_frames}</div><div class="label">Frames</div></div>
+            <div class="metric-card">
+                <div class="value" style="color:#FF9100">${(data.cnn_accuracy*100).toFixed(1)}%</div>
+                <div class="label">CNN-Only</div>
+                <div class="sublabel">error_rate=0.18</div>
+            </div>
+            <div class="metric-card">
+                <div class="value" style="color:#00E676">${(data.hmm_accuracy*100).toFixed(1)}%</div>
+                <div class="label">HMM-Corrected</div>
+                <div class="sublabel">Viterbi decoding</div>
+            </div>
+            <div class="metric-card">
+                <div class="value" style="color:#448AFF">+${(data.improvement*100).toFixed(1)}%</div>
+                <div class="label">Improvement</div>
+                <div class="sublabel">simulasi</div>
+            </div>
+            <div class="metric-card">
+                <div class="value">${data.n_frames}</div>
+                <div class="label">Frames</div>
+                <div class="sublabel">${data.total_hours}h sim</div>
+            </div>
         `;
+
+        const insightEl = document.getElementById("hmm-insight");
+        insightEl.innerHTML = `
+            💡 Matriks transisi HMM <strong>diturunkan dari ODE Tyson-Novak</strong>, bukan dari data training.
+            Ini memungkinkan koreksi sekuens tanpa data time-lapse berlabel.
+            Transisi tidak valid (G1→Anaphase) memiliki probabilitas ≈10⁻⁴ dalam matriks ODE → Viterbi menolaknya secara otomatis.
+        `;
+        insightEl.style.display = "block";
+
         document.getElementById("hmm-plot").src = "data:image/png;base64," + data.hmm_plot;
         show("results-hmm");
-    } catch(e) { console.error("HMM:", e); }
-    finally { hide("loading-hmm"); }
+    } catch(e) {
+        showCardError("error-hmm", `Gagal memuat HMM: ${e.message}`);
+    } finally { hide("loading-hmm"); }
 }
 
 // ── Checkpoint ───────────────────────────────────────────
 
 async function runCheckpoint() {
-    show("loading-checkpoint"); hide("results-checkpoint");
+    show("loading-checkpoint"); hide("results-checkpoint"); hideCardError("error-checkpoint");
     try {
         const res = await fetch("/api/dashboard/checkpoint");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        const reduction = data.n_cnn_anomalies > 0
+            ? Math.round((1 - data.n_hmm_anomalies / data.n_cnn_anomalies) * 100)
+            : 0;
 
         document.getElementById("checkpoint-metrics").innerHTML = `
-            <div class="metric-card"><div class="value" style="color:#FF1744">${data.n_cnn_anomalies}</div><div class="label">CNN-Only Anomalies</div></div>
-            <div class="metric-card"><div class="value" style="color:#00E676">${data.n_hmm_anomalies}</div><div class="label">HMM-Corrected</div></div>
+            <div class="metric-card">
+                <div class="value" style="color:#FF1744">${data.n_cnn_anomalies}</div>
+                <div class="label">CNN-Only Anomalies</div>
+                <div class="sublabel">termasuk artefak</div>
+            </div>
+            <div class="metric-card">
+                <div class="value" style="color:#00E676">${data.n_hmm_anomalies}</div>
+                <div class="label">HMM-Corrected</div>
+                <div class="sublabel">genuine anomalies</div>
+            </div>
+            <div class="metric-card">
+                <div class="value" style="color:#448AFF">-${reduction}%</div>
+                <div class="label">False Anomalies</div>
+                <div class="sublabel">dieliminasi HMM</div>
+            </div>
         `;
+
+        const insightEl = document.getElementById("checkpoint-insight");
+        insightEl.innerHTML = `
+            💡 <strong>Mayoritas anomali CNN-only adalah artefak klasifikasi</strong> — transisi tidak valid (G1→Anaphase) bukan anomali biologis.
+            HMM mengeliminasi artefak ini; sisa <strong>${data.n_hmm_anomalies} anomali genuine</strong> merepresentasikan potensi disregulasi checkpoint biologis.
+        `;
+        insightEl.style.display = "block";
+
         document.getElementById("checkpoint-plot").src = "data:image/png;base64," + data.checkpoint_plot;
 
         const list = document.getElementById("anomaly-list");
         if (data.anomalies_hmm.length === 0) {
-            list.innerHTML = '<p style="color:#666;font-size:0.78rem;">No anomalies detected.</p>';
+            list.innerHTML = '<p style="color:#666;font-size:0.78rem;">Tidak ada anomali checkpoint terdeteksi pada sekuens HMM-corrected.</p>';
         } else {
             list.innerHTML = data.anomalies_hmm.map(a => `
                 <div class="anomaly-item severity-${a.severity}">
                     <div class="anomaly-header">
                         <span class="anomaly-badge" style="background:${SEVERITY_COLORS[a.severity]}30;color:${SEVERITY_COLORS[a.severity]}">${a.severity}</span>
-                        ${a.checkpoint} (${a.phase})
+                        ${a.checkpoint} (${a.phase}) &mdash; frame ${a.frame_start}–${a.frame_end}
                     </div>
                     <div class="anomaly-body">${a.bio_interpretation}</div>
                 </div>
             `).join("");
         }
         show("results-checkpoint");
-    } catch(e) { console.error("Checkpoint:", e); }
-    finally { hide("loading-checkpoint"); }
+    } catch(e) {
+        showCardError("error-checkpoint", `Gagal memuat checkpoint: ${e.message}`);
+    } finally { hide("loading-checkpoint"); }
 }
 
 // ── Population ───────────────────────────────────────────
 
 async function runPopulation() {
-    show("loading-population"); hide("results-population");
+    show("loading-population"); hide("results-population"); hideCardError("error-population");
     try {
         const res = await fetch("/api/dashboard/population");
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
         document.getElementById("pop-metrics").innerHTML = `
-            <div class="metric-card"><div class="value">${data.total_cells}</div><div class="label">Cells</div></div>
-            <div class="metric-card"><div class="value" style="color:#FF1744">${(data.mitotic_index*100).toFixed(1)}%</div><div class="label">Mitotic Index</div></div>
+            <div class="metric-card"><div class="value">${data.total_cells}</div><div class="label">Cells</div><div class="sublabel">test set</div></div>
+            <div class="metric-card"><div class="value" style="color:#FF1744">${(data.mitotic_index*100).toFixed(1)}%</div><div class="label">Mitotic Index</div><div class="sublabel">lit: 5–10%</div></div>
             <div class="metric-card"><div class="value" style="color:#448AFF">${(data.growth_fraction*100).toFixed(1)}%</div><div class="label">Growth Fraction</div></div>
-            <div class="metric-card"><div class="value" style="color:#E040FB">${data.doubling_time_hours.toFixed(1)}h</div><div class="label">Doubling Time</div></div>
+            <div class="metric-card"><div class="value" style="color:#E040FB">${data.doubling_time_hours.toFixed(1)}h</div><div class="label">Doubling Time</div><div class="sublabel">lit: ~24h</div></div>
         `;
         document.getElementById("population-plot").src = "data:image/png;base64," + data.population_plot;
         document.getElementById("pop-clinical").innerHTML = `
@@ -176,8 +294,9 @@ async function runPopulation() {
             <p>${data.clinical_significance}</p>
         `;
         show("results-population");
-    } catch(e) { console.error("Population:", e); }
-    finally { hide("loading-population"); }
+    } catch(e) {
+        showCardError("error-population", `Gagal memuat populasi: ${e.message}`);
+    } finally { hide("loading-population"); }
 }
 
 // ═══ SIDEBAR: Live Inference ═════════════════════════════
@@ -185,6 +304,7 @@ async function runPopulation() {
 const uploadArea = document.getElementById("upload-area");
 const fileInput = document.getElementById("file-input");
 const btnClassify = document.getElementById("btn-classify");
+const btnSample = document.getElementById("btn-sample");
 let selectedFile = null;
 
 uploadArea.addEventListener("click", () => fileInput.click());
@@ -202,13 +322,35 @@ function handleFile(file) {
     document.getElementById("filename").textContent = file.name;
     document.getElementById("preview").style.display = "block";
     btnClassify.style.display = "block";
-    hide("results-classify"); hide("error-msg");
+    hide("results-classify"); hide("error-msg"); hide("bio-interp");
 }
+
+// Try Sample Image
+btnSample.addEventListener("click", async () => {
+    btnSample.disabled = true;
+    btnSample.textContent = "Loading sample…";
+    try {
+        const res = await fetch("/api/sample_image");
+        if (!res.ok) throw new Error("Sample not available");
+        const blob = await res.blob();
+        const contentDisp = res.headers.get("Content-Disposition") || "";
+        const nameMatch = contentDisp.match(/filename="?([^"]+)"?/);
+        const fname = nameMatch ? nameMatch[1] : "sample_cell.png";
+        const file = new File([blob], fname, { type: blob.type });
+        handleFile(file);
+    } catch(e) {
+        document.getElementById("error-msg").textContent = `Sample image: ${e.message}`;
+        show("error-msg");
+    } finally {
+        btnSample.disabled = false;
+        btnSample.textContent = "🔬 Try Sample Image";
+    }
+});
 
 btnClassify.addEventListener("click", async () => {
     if (!selectedFile) return;
     btnClassify.disabled = true;
-    show("loading-classify"); hide("results-classify"); hide("error-msg");
+    show("loading-classify"); hide("results-classify"); hide("error-msg"); hide("bio-interp");
 
     const formData = new FormData();
     formData.append("image", selectedFile);
@@ -226,7 +368,7 @@ btnClassify.addEventListener("click", async () => {
         const info = data.phase_info;
         document.getElementById("phase-info").innerHTML = `
             <span class="chip">${info.category}</span>
-            <span class="chip">${info.duration_hours}h</span>
+            <span class="chip">${info.duration_hours}h avg</span>
             <span class="chip">${(info.fraction_of_cycle*100).toFixed(1)}% of cycle</span>
         `;
 
@@ -237,6 +379,15 @@ btnClassify.addEventListener("click", async () => {
         }
         document.getElementById("prob-bars-container").innerHTML = bars;
         document.getElementById("gradcam-img").src = "data:image/png;base64," + data.gradcam_image;
+
+        // Biological interpretation
+        const bioInfo = PHASE_BIO_INFO[phase];
+        if (bioInfo) {
+            document.getElementById("bio-interp-text").textContent = bioInfo.description;
+            document.getElementById("bio-visual-cue").textContent = bioInfo.visual_cue;
+            show("bio-interp");
+        }
+
         show("results-classify");
     } catch(err) {
         document.getElementById("error-msg").textContent = err.message;
@@ -252,16 +403,28 @@ async function checkStatus() {
         const data = await res.json();
         const dot = document.getElementById("status-dot");
         const text = document.getElementById("status-text");
-        if (data.model_loaded && data.ode_ready && data.hmm_ready) {
+        const banner = document.getElementById("setup-banner");
+
+        const allReady = data.model_loaded && data.ode_ready && data.hmm_ready && data.data_loaded;
+        if (allReady) {
             dot.className = "status-dot online";
             text.textContent = `Ready (${data.device})`;
+            if (banner) banner.style.display = "none";
         } else {
             dot.className = "status-dot offline";
-            text.textContent = "Model not loaded";
+            const missing = [];
+            if (!data.model_loaded) missing.push("model");
+            if (!data.data_loaded) missing.push("data");
+            if (!data.ode_ready || !data.hmm_ready) missing.push("ODE/HMM");
+            text.textContent = `Not ready: ${missing.join(", ")}`;
+            if (banner) banner.style.display = "block";
         }
     } catch {
         document.getElementById("status-dot").className = "status-dot offline";
-        document.getElementById("status-text").textContent = "Offline";
+        document.getElementById("status-text").textContent = "Server offline";
+        const banner = document.getElementById("setup-banner");
+        if (banner) banner.style.display = "block";
     }
 }
-checkStatus(); setInterval(checkStatus, 10000);
+checkStatus();
+setInterval(checkStatus, 10000);

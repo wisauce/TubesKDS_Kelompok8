@@ -67,6 +67,15 @@ Di sisi lain, model matematika siklus sel berbasis ODE telah dikembangkan secara
 
 Hidden Markov Model (HMM) telah menjadi \textit{workhorse} dalam bioinformatika untuk analisis sekuens~\cite{durbin1998}, namun penerapannya untuk koreksi temporal pada klasifikasi citra siklus sel --- khususnya dengan matriks transisi yang diturunkan dari model biofisika --- belum dieksplorasi.
 
+\subsubsection{Gap dalam Literatur}
+Berdasarkan tinjauan pustaka di atas, terdapat tiga gap mendasar yang belum ditangani:
+\begin{enumerate}[noitemsep,topsep=3pt]
+    \item \textbf{CNN statis tanpa biological constraint:} Pendekatan Eulenberg et al.~\cite{eulenberg2017} mengklasifikasikan setiap frame secara independen, sehingga memungkinkan prediksi urutan yang biologis tidak valid (mis.\ G1$\rightarrow$Anaphase) karena tidak ada pengetahuan tentang urutan fase yang diwajibkan biologi.
+    \item \textbf{Matriks transisi HMM yang bergantung pada data berlabel:} HMM konvensional memerlukan data time-lapse berlabel untuk mengestimasi matriks transisi, sedangkan \textit{ground-truth} time-lapse pada resolusi per-frame sangat terbatas dan mahal secara eksperimental~\cite{ljosa2012}.
+    \item \textbf{Anomali checkpoint jarang terlabeli:} Deteksi anomali checkpoint (G1/S bypass, spindle defect) menggunakan ML memerlukan data anomali berlabel yang hampir tidak tersedia dalam jumlah cukup, sehingga pendekatan \textit{rule-based} berbasis biologi menjadi satu-satunya pilihan praktis.
+\end{enumerate}
+Gap-gap ini menjadi motivasi langsung bagi tiga pertanyaan penelitian berikut.
+
 \subsection{Rumusan Masalah}
 
 Penelitian ini menjawab tiga pertanyaan:
@@ -103,7 +112,13 @@ Bagian ini menjelaskan arsitektur sistem secara keseluruhan dan detail implement
 \subsection{Layer 1: CNN Phase Classifier (CS $\rightarrow$ Biologi)}
 
 \subsubsection{Dataset BBBC048}
-Digunakan dataset BBBC048 dari Broad Bioimage Benchmark Collection~\cite{ljosa2012}, berisi citra mikroskopi fluoresensi sel Jurkat (human T-lymphocyte) yang diwarnai dengan Hoechst 33342 (DNA) dan dilabeli ke dalam 7 fase siklus sel oleh ahli biologi. Dataset mencakup hingga 800 citra per fase, dibagi secara stratified menjadi training (70\%), validation (15\%), dan test set (15\%) dengan random seed tetap untuk reprodusibilitas.
+Digunakan dataset BBBC048 dari Broad Bioimage Benchmark Collection~\cite{ljosa2012}, berisi citra mikroskopi fluoresensi sel Jurkat (human T-lymphocyte) yang diwarnai dengan Hoechst 33342 (pewarna DNA interkalan) dan dilabeli ke dalam 7 fase siklus sel oleh ahli biologi. Dataset mencakup hingga 800 citra per fase, dibagi secara stratified menjadi training (70\%), validation (15\%), dan test set (15\%) dengan random seed tetap untuk reprodusibilitas.
+
+Pemilihan sel \textbf{Jurkat} dan pewarna \textbf{Hoechst 33342} didasari dua alasan biologis:
+\begin{itemize}[noitemsep,topsep=3pt]
+    \item Jurkat (human T-cell leukemia) adalah lini sel model yang siklus selnya telah dikarakterisasi dengan baik, doubling time $\sim$24 jam~\cite{eulenberg2017}, sehingga metrik populasi dapat divalidasi terhadap literatur.
+    \item Hoechst 33342 terikat pada DNA \textit{minor groove} dan intensitas fluoresensinya proporsional dengan konten DNA per sel. Hal ini secara langsung memungkinkan pembedaan G1 (2N DNA), S (2N--4N, replikasi aktif), dan G2/M (4N) berdasarkan morfologi nukleus --- tanpa memerlukan pewarnaan tambahan atau \textit{flow cytometry}.
+\end{itemize}
 
 \subsubsection{Arsitektur Model}
 Digunakan ResNet-18~\cite{he2016} yang di-\textit{pretrain} pada ImageNet dan di-\textit{fine-tune} pada dataset siklus sel. Konfigurasi training:
@@ -126,6 +141,15 @@ Gradient-weighted Class Activation Mapping (Grad-CAM)~\cite{selvaraju2017} diimp
 di mana $\alpha^c_k = \frac{1}{Z}\sum_i\sum_j \frac{\partial y^c}{\partial A^k_{ij}}$ adalah bobot importance channel $k$, dan $A^k$ adalah activation map. Heatmap di-upsample ke resolusi input menggunakan interpolasi bilinear.
 
 \subsection{Layer 2: Validasi Temporal Biologis (Biologi $\rightarrow$ CS)}
+
+\subsubsection{Asumsi Biologis yang Digunakan}
+Model Layer~2 dibangun di atas asumsi biologis berikut yang diturunkan dari literatur:
+\begin{itemize}[noitemsep,topsep=3pt]
+    \item \textbf{Urutan fase bersifat unidireksional:} Siklus sel berlangsung dalam urutan tetap G1$\rightarrow$S$\rightarrow$G2$\rightarrow$Prophase$\rightarrow$Metaphase$\rightarrow$Anaphase$\rightarrow$Telophase$\rightarrow$G1, tanpa "mundur" ke fase sebelumnya (irreversibility)~\cite{morgan2007}.
+    \item \textbf{Threshold konsentrasi dari literatur:} Penentuan batas fase dari state ODE (Tabel~\ref{tab:phase_assign}) dikalibrasi terhadap eksperimen biokimia pada ekstrak Xenopus dan sel mamalia~\cite{tyson2001}.
+    \item \textbf{Durasi fase proporsional terhadap doubling time:} Fraksi waktu di setiap fase (G1 $\sim$50\%, S $\sim$30\%, G2 $\sim$15\%, M $\sim$5\%) konsisten dengan sel mamalia tipikal~\cite{morgan2007} dan divalidasi terhadap data Jurkat.
+    \item \textbf{Threshold deteksi anomali dari literatur klinis:} Range durasi fase pada Tabel~\ref{tab:thresholds} bersumber dari~\cite{alberts2022,morgan2007} dan merepresentasikan batas fisiologis yang telah divalidasi secara eksperimental.
+\end{itemize}
 
 \subsubsection{Model ODE Cyclin-CDK (Tyson-Novak)}
 Diimplementasikan model Tyson-Novak yang disederhanakan~\cite{tyson2001} dengan tiga variabel state:
@@ -233,7 +257,32 @@ Dari prediksi per-sel pada test set, dihitung metrik populasi:
 
 \subsection{Implementasi Teknis}
 
-Seluruh sistem diimplementasikan dalam Python 3.10+ dengan dependensi: PyTorch 2.0+ (CNN, Grad-CAM), SciPy 1.10+ (ODE solver), NumPy (komputasi numerik), Matplotlib/Seaborn (visualisasi), scikit-learn (evaluasi), dan Flask 3.0+ (web server). Kode tersedia di: \url{https://github.com/[REPO_URL]}.
+Seluruh sistem diimplementasikan dalam Python 3.10+ dengan dependensi: PyTorch 2.0+ (CNN, Grad-CAM), SciPy 1.10+ (ODE solver), NumPy (komputasi numerik), Matplotlib/Seaborn (visualisasi), scikit-learn (evaluasi), dan Flask 3.0+ (web server). Kode tersedia di: \url{https://github.com/wisauce/TubesKDS_Kelompok8}.
+
+Ringkasan konfigurasi training CNN (ResNet-18) ditunjukkan pada Tabel~\ref{tab:train_config}.
+
+\begin{table}[!t]
+\centering
+\caption{Konfigurasi training CNN ResNet-18 pada dataset BBBC048}
+\label{tab:train_config}
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parameter} & \textbf{Nilai} \\
+\midrule
+Arsitektur & ResNet-18 (pretrained ImageNet) \\
+Input size & $128 \times 128$ piksel (RGB) \\
+Output & 7 fase (softmax) \\
+Optimizer & Adam, lr=$10^{-4}$, weight decay=$10^{-5}$ \\
+Loss & Cross-entropy \\
+Batch size & 32 \\
+Epochs & 5 (CPU baseline; dapat $>$20 dengan GPU) \\
+Augmentasi & Flip horisontal, rotasi $\pm15°$, color jitter \\
+Early stopping & Berdasarkan validation loss \\
+Random seed & 42 (reprodusibilitas) \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 %═══════════════════════════════════════════════════════════
 \section{Hasil dan Diskusi}
@@ -300,7 +349,9 @@ Solusi numerik ODE Tyson-Novak (Gambar~\ref{fig:ode}) menunjukkan osilasi limit 
 
 Perilaku ini konsisten dengan eksperimen biokimia pada ekstrak Xenopus~\cite{tyson2001} dan menghasilkan fraksi fase yang proporsional dengan durasi biologis yang diketahui.
 
-\subsection{Koreksi Temporal HMM (Layer 2b)}
+\subsection{Koreksi Temporal HMM (Layer 2b) --- \textit{Proof-of-Concept} pada Simulasi}
+
+\textit{Catatan:} Evaluasi HMM dilakukan pada \textbf{simulasi time-lapse terkontrol}, bukan pada data time-lapse nyata, karena dataset BBBC048 merupakan snapshot cross-sectional (bukan sekuens temporal). Simulasi dilakukan dengan mensintesis sekuens fase dari ODE ground-truth dan menambahkan noise klasifikasi 18\% (menggantikan prediksi dengan fase acak) untuk merepresentasikan error CNN yang realistis. Ini merupakan \textit{proof-of-concept} yang mendemonstrasikan prinsip koreksi HMM sebelum validasi pada data time-lapse nyata.
 
 Gambar~\ref{fig:hmm} menunjukkan perbandingan antara ground truth, prediksi CNN-only (dengan 18\% noise rate untuk mensimulasikan error klasifikasi), dan hasil koreksi HMM pada simulasi time-lapse 150 frame (30 jam).
 
@@ -398,14 +449,14 @@ Sistem dilengkapi antarmuka web (Gambar~\ref{fig:web}) berbasis Flask yang mengi
 %═══════════════════════════════════════════════════════════
 \section{Kesimpulan}
 
-Penelitian ini mendemonstrasikan bahwa integrasi \textit{deep learning} dengan validasi biologis menghasilkan sistem analisis siklus sel yang lebih robust, interpretable, dan bermakna secara klinis dibandingkan pendekatan murni \textit{data-driven}. Kontribusi utama yang dicapai:
+Penelitian ini mendemonstrasikan bahwa integrasi \textit{deep learning} dengan validasi biologis menghasilkan sistem analisis siklus sel yang lebih robust, interpretable, dan bermakna secara klinis dibandingkan pendekatan murni \textit{data-driven}. Kontribusi utama penelitian ini dapat dirangkum sebagai klaim yang terverifikasi:
 
 \begin{enumerate}[noitemsep,topsep=3pt]
-    \item \textbf{Arsitektur tiga lapis bidireksional} berhasil menunjukkan sinergi antara computer science dan biologi: CNN mengekstrak informasi dari citra (CS$\rightarrow$Bio), sementara model ODE dan aturan checkpoint memberikan constraint biologis yang meningkatkan kualitas prediksi (Bio$\rightarrow$CS).
-    \item \textbf{Peningkatan akurasi sekuensial $\sim$15\%} melalui koreksi HMM dengan matriks transisi yang diturunkan dari model biofisika Tyson-Novak, mendemonstrasikan nilai dari \textit{biologically-informed} machine learning.
-    \item \textbf{Deteksi anomali checkpoint} yang mampu membedakan artefak klasifikasi dari anomali biologis genuine, dengan interpretasi klinis otomatis yang relevan untuk identifikasi fenotip proliferatif abnormal.
-    \item \textbf{Validasi melalui Grad-CAM} mengkonfirmasi bahwa CNN memperhatikan fitur morfologis yang bermakna secara biologis (kondensasi kromosom, metaphase plate, pemisahan kromatid).
-    \item \textbf{Konsistensi metrik populasi} dengan literatur (doubling time $\sim$24 jam untuk sel Jurkat) memberikan validasi end-to-end sistem.
+    \item \textbf{Hybrid CNN + ODE-informed HMM untuk validasi urutan biologis:} Arsitektur tiga lapis bidireksional menunjukkan sinergi antara computer science dan biologi --- CNN mengekstrak informasi dari citra (CS$\rightarrow$Bio), sementara model ODE Tyson-Novak dan aturan checkpoint memberikan constraint biologis yang meningkatkan kualitas prediksi (Bio$\rightarrow$CS). Ini berbeda mendasar dari HMM konvensional yang mempelajari matriks transisi dari data, sehingga tidak memerlukan data time-lapse berlabel untuk training.
+    \item \textbf{Peningkatan konsistensi sekuens +$\sim$15\% pada proof-of-concept simulasi:} Koreksi HMM dengan matriks transisi dari ODE meningkatkan akurasi sekuensial dari $\sim$82\% (CNN-only) menjadi $\sim$97\%, dan mengurangi transisi tidak valid sebesar $\sim$90\%, pada simulasi terkontrol dengan noise rate 18\%. Validasi pada data time-lapse nyata merupakan langkah penelitian berikutnya.
+    \item \textbf{Pipeline interpretasi biologis end-to-end untuk validasi klinis:} Deteksi anomali checkpoint berbasis aturan biologi (tanpa data anomali berlabel) berhasil membedakan artefak klasifikasi (CNN: $>$20 anomali) dari anomali biologis genuine (HMM: $<$5 anomali), disertai interpretasi mekanisme molekuler otomatis. Analisis populasi (MI $\sim$5--8\%, doubling time $\sim$24 jam) tervalidasi konsisten dengan literatur sel Jurkat~\cite{eulenberg2017}.
+    \item \textbf{Validasi melalui Grad-CAM} mengkonfirmasi bahwa CNN tidak melakukan \textit{shortcut learning}, melainkan memperhatikan fitur morfologis bermakna secara biologis: kondensasi kromosom (Prophase), metaphase plate (Metaphase), pemisahan kromatid (Anaphase), dan morfologi nukleus untuk fase interphase.
+    \item \textbf{Aplikasi web interaktif} yang mengintegrasikan seluruh pipeline untuk demonstrasi dan analisis real-time, memungkinkan inferensi single-cell dengan Grad-CAM overlay serta visualisasi dinamika ODE dan koreksi HMM.
 \end{enumerate}
 
 \subsection{Keterbatasan}
@@ -427,8 +478,8 @@ Penelitian ini mendemonstrasikan bahwa integrasi \textit{deep learning} dengan v
 
 \section*{Tautan}
 \begin{itemize}[noitemsep,topsep=3pt]
-    \item Repository kode: \url{https://github.com/[REPO_URL]}
-    \item Video presentasi: \url{https://[VIDEO_URL]}
+    \item Repository kode: \url{https://github.com/wisauce/TubesKDS_Kelompok8}
+    \item Video presentasi: \url{https://bit.ly/VideoKDSkel8}
 \end{itemize}
 
 %═══════════════════════════════════════════════════════════

@@ -216,6 +216,26 @@ def dashboard_cnn():
     total_params = sum(p.numel() for p in model.parameters())
     param_str = f"{total_params/1e6:.1f}M" if total_params > 1e6 else f"{total_params/1e3:.0f}K"
 
+    # --- Most confused pairs (top-3 off-diagonal) ---
+    cm_copy = cm.copy()
+    np.fill_diagonal(cm_copy, 0)
+    confused_flat = cm_copy.flatten()
+    top3_idx = np.argsort(confused_flat)[::-1][:3]
+    most_confused_pairs = []
+    for idx in top3_idx:
+        if confused_flat[idx] == 0:
+            break
+        i, j = divmod(int(idx), NUM_PHASES)
+        most_confused_pairs.append({
+            "true_class": PHASES[i],
+            "predicted_class": PHASES[j],
+            "count": int(cm_copy[i, j])
+        })
+
+    # --- Hard classes: lowest F1 ---
+    f1_scores = {p: report[p]["f1-score"] for p in PHASES}
+    hard_classes = sorted(f1_scores, key=f1_scores.get)[:2]
+
     return jsonify({
         "test_accuracy": test_acc,
         "total_samples": len(test_loader.dataset),
@@ -223,6 +243,8 @@ def dashboard_cnn():
         "model_params": param_str,
         "confusion_matrix": cm_b64,
         "training_curves": curves_b64,
+        "most_confused_pairs": most_confused_pairs,
+        "hard_classes": hard_classes,
     })
 
 
@@ -433,6 +455,38 @@ def dashboard_population():
         "status": prolif["status"],
         "clinical_significance": prolif["clinical_significance"],
     })
+
+
+# ═══ SAMPLE IMAGE ════════════════════════════════════════
+
+@app.route("/api/sample_image")
+def sample_image():
+    """Return a random image from the test set for the Try Sample Image button."""
+    if test_loader is None:
+        return jsonify({"error": "Data not loaded."}), 503
+    import random
+    from flask import send_file
+    dataset = test_loader.dataset
+    idx = random.randint(0, len(dataset) - 1)
+    img_tensor, label_idx = dataset[idx]
+    phase_name = IDX_TO_PHASE[label_idx]
+
+    # De-normalize and convert to PIL
+    mean = torch.tensor(IMG_MEAN).view(3, 1, 1)
+    std = torch.tensor(IMG_STD).view(3, 1, 1)
+    img_denorm = img_tensor * std + mean
+    img_denorm = img_denorm.clamp(0, 1)
+    img_pil = transforms.ToPILImage()(img_denorm)
+
+    buf = io.BytesIO()
+    img_pil.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=f"sample_{phase_name}.png"
+    )
 
 
 # ═══ STATUS ═══════════════════════════════════════════════

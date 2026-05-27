@@ -4,22 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cell Cycle Intelligence System</title>
+    <meta name="description" content="Sistem analisis siklus sel hybrid CNN + ODE-HMM dengan validasi biologis. BBBC048 dataset, Jurkat cells.">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Offline / Setup Guide Banner (shown when model not loaded) -->
+    <div class="setup-banner" id="setup-banner" style="display:none">
+        <div class="setup-banner-inner">
+            <span class="setup-icon">⚠️</span>
+            <div class="setup-text">
+                <strong>Model belum dimuat.</strong> Jalankan pipeline terlebih dahulu:
+                <code>python TubesKDS2/main.py</code>  lalu  <code>python TubesKDS2/api/app.py</code>
+            </div>
+            <button class="setup-close" onclick="document.getElementById('setup-banner').style.display='none'">✕</button>
+        </div>
+    </div>
+
     <!-- Main layout: dashboard left, inference sidebar right -->
     <div class="layout">
         <!-- LEFT: Dashboard -->
         <main class="dashboard">
             <header>
                 <h1>Cell Cycle Intelligence System</h1>
-                <p class="subtitle">Sistem Analisis Siklus Sel Berbasis Pembelajaran Mendalam dengan Validasi Biologi</p>
+                <p class="subtitle">Sistem Analisis Siklus Sel Berbasis Pembelajaran Mendalam dengan Validasi Biologi &mdash; Jurkat Cells (BBBC048)</p>
                 <div class="header-actions">
                     <button class="btn-run" id="btn-run-all">&#9654; Run Full Simulation</button>
                     <span class="status-indicator">
                         <span class="status-dot" id="status-dot"></span>
                         <span id="status-text">Checking...</span>
                     </span>
+                </div>
+                <!-- Data source legend -->
+                <div class="legend-row">
+                    <span class="legend-item"><span class="badge badge-real">Real Data</span> CNN &amp; Grad-CAM: hasil evaluasi pada test set BBBC048 sesungguhnya</span>
+                    <span class="legend-item"><span class="badge badge-sim">⚗ Simulated</span> HMM &amp; Checkpoint: simulasi time-lapse (proof-of-concept) &mdash; data berlabel tidak tersedia</span>
                 </div>
             </header>
 
@@ -28,14 +46,18 @@
                 <div class="card-header">
                     <h2>Layer 1 &mdash; CNN Phase Classifier</h2>
                     <span class="badge">ResNet-18</span>
+                    <span class="badge badge-real">Real Data</span>
                 </div>
-                <p class="desc">Test-set evaluation on real BBBC048 fluorescence microscopy data.</p>
-                <div class="loading" id="loading-cnn"><div class="spinner"></div></div>
+                <p class="desc">Evaluasi pada <strong>real BBBC048 fluorescence microscopy test set</strong>. ResNet-18 fine-tuned, input 128×128, output 7 fase.</p>
+                <div class="loading" id="loading-cnn"><div class="spinner"></div><div class="loading-label" id="loading-cnn-label">Evaluating CNN on test set…</div></div>
+                <div class="card-error" id="error-cnn" style="display:none"></div>
                 <div class="card-body" id="results-cnn">
                     <div class="metrics-row" id="cnn-metrics"></div>
+                    <!-- Key insight bar -->
+                    <div class="insight-box" id="cnn-insight" style="display:none"></div>
                     <div class="plots-row">
                         <img id="cnn-confusion" class="plot-img" alt="Confusion Matrix">
-                        <img id="cnn-curves" class="plot-img" alt="Training Curves">
+                        <img id="cnn-curves" class="plot-img" alt="Per-Class Precision & Recall">
                     </div>
                 </div>
             </section>
@@ -45,9 +67,11 @@
                 <div class="card-header">
                     <h2>Grad-CAM Explainability</h2>
                     <span class="badge">XAI</span>
+                    <span class="badge badge-real">Real Data</span>
                 </div>
-                <p class="desc">Spatial attention maps showing which regions the CNN uses for classification. Generated from random test-set samples.</p>
-                <div class="loading" id="loading-gradcam"><div class="spinner"></div></div>
+                <p class="desc">Spatial attention maps pada <strong>sampel test set nyata</strong>. Memvalidasi CNN tidak melakukan <em>shortcut learning</em> — fokus pada nukleus, kondensasi kromosom, metaphase plate.</p>
+                <div class="loading" id="loading-gradcam"><div class="spinner"></div><div class="loading-label">Generating Grad-CAM…</div></div>
+                <div class="card-error" id="error-gradcam" style="display:none"></div>
                 <div class="card-body" id="results-gradcam">
                     <img id="gradcam-batch" class="plot-img wide" alt="Grad-CAM Batch">
                 </div>
@@ -58,13 +82,15 @@
                 <div class="card-header">
                     <h2>Layer 2a &mdash; Cyclin-CDK ODE Dynamics</h2>
                     <span class="badge">Tyson-Novak</span>
+                    <span class="badge badge-bio">Biophysics</span>
                 </div>
-                <p class="desc">Simplified Cyclin B / CDK1 / APC oscillator. Provides biologically-grounded transition probabilities.</p>
-                <div class="loading" id="loading-ode"><div class="spinner"></div></div>
+                <p class="desc">Model ODE Tyson-Novak (CycB / CDK1 / APC). Osilasi limit cycle menghasilkan <strong>matriks transisi biologis</strong> — diturunkan dari mekanisme molekuler, bukan dari data training.</p>
+                <div class="loading" id="loading-ode"><div class="spinner"></div><div class="loading-label">Solving ODE…</div></div>
+                <div class="card-error" id="error-ode" style="display:none"></div>
                 <div class="card-body" id="results-ode">
                     <img id="ode-plot" class="plot-img wide" alt="ODE Dynamics">
                     <details class="matrix-details">
-                        <summary>Transition Matrix</summary>
+                        <summary>Transition Matrix (dari ODE, bukan dari data)</summary>
                         <div id="transition-matrix" class="matrix-container"></div>
                     </details>
                 </div>
@@ -75,11 +101,23 @@
                 <div class="card-header">
                     <h2>Layer 2b &mdash; HMM Temporal Validation</h2>
                     <span class="badge">Viterbi</span>
+                    <span class="badge badge-sim">⚗ Simulated</span>
                 </div>
-                <p class="desc">ODE-derived transition constraints correct noisy CNN predictions over simulated time-lapse using real phase duration data.</p>
-                <div class="loading" id="loading-hmm"><div class="spinner"></div></div>
+                <p class="desc">
+                    <strong>Proof-of-concept pada simulasi time-lapse terkontrol.</strong>
+                    Dataset BBBC048 bersifat cross-sectional (bukan sekuens temporal) — data time-lapse berlabel tidak tersedia.
+                    Simulasi mensintesis sekuens dari ODE ground-truth + inject noise 18%, lalu dikoreksi dengan Viterbi decoding.
+                </p>
+                <!-- Simulation params notice -->
+                <div class="sim-notice" id="hmm-sim-notice">
+                    <span class="sim-icon">⚗</span>
+                    <span class="sim-text">Parameter simulasi: <strong>error_rate = 0.18</strong>, <strong>obs_noise = 0.15</strong> &mdash; merepresentasikan error CNN yang realistis pada time-lapse.</span>
+                </div>
+                <div class="loading" id="loading-hmm"><div class="spinner"></div><div class="loading-label">Running HMM correction…</div></div>
+                <div class="card-error" id="error-hmm" style="display:none"></div>
                 <div class="card-body" id="results-hmm">
                     <div class="metrics-row" id="hmm-metrics"></div>
+                    <div class="insight-box" id="hmm-insight" style="display:none"></div>
                     <img id="hmm-plot" class="plot-img wide" alt="HMM Comparison">
                 </div>
             </section>
@@ -89,11 +127,21 @@
                 <div class="card-header">
                     <h2>Layer 3 &mdash; Checkpoint Anomaly Detector</h2>
                     <span class="badge">Biology Rules</span>
+                    <span class="badge badge-sim">⚗ Simulated</span>
                 </div>
-                <p class="desc">Biology-derived rules detect G1/S restriction, G2/M damage, spindle assembly violations, and invalid transitions.</p>
-                <div class="loading" id="loading-checkpoint"><div class="spinner"></div></div>
+                <p class="desc">
+                    Aturan deteksi berbasis biologi sel (durasi fase G1/S/G2/M, urutan siklik) — <strong>tanpa data anomali berlabel</strong>.
+                    Dijalankan pada sekuens simulasi. <em>Mayoritas anomali CNN-only adalah artefak klasifikasi; HMM mengeliminasinya.</em>
+                </p>
+                <div class="sim-notice">
+                    <span class="sim-icon">⚗</span>
+                    <span class="sim-text">Sekuens yang sama dengan HMM di atas. CNN-only vs HMM-corrected dibandingkan pada simulasi yang sama.</span>
+                </div>
+                <div class="loading" id="loading-checkpoint"><div class="spinner"></div><div class="loading-label">Detecting checkpoint anomalies…</div></div>
+                <div class="card-error" id="error-checkpoint" style="display:none"></div>
                 <div class="card-body" id="results-checkpoint">
                     <div class="metrics-row" id="checkpoint-metrics"></div>
+                    <div class="insight-box" id="checkpoint-insight" style="display:none"></div>
                     <img id="checkpoint-plot" class="plot-img wide" alt="Checkpoint Timeline">
                     <div id="anomaly-list" class="anomaly-list"></div>
                 </div>
@@ -104,9 +152,11 @@
                 <div class="card-header">
                     <h2>Population Analysis</h2>
                     <span class="badge">Aggregate</span>
+                    <span class="badge badge-real">Real Data</span>
                 </div>
-                <p class="desc">Population-level metrics from test-set predictions: mitotic index, growth fraction, doubling time.</p>
-                <div class="loading" id="loading-population"><div class="spinner"></div></div>
+                <p class="desc">Metrik populasi dari <strong>prediksi CNN pada test set nyata</strong>: mitotic index, growth fraction, doubling time — divalidasi terhadap literatur sel Jurkat (~24 jam).</p>
+                <div class="loading" id="loading-population"><div class="spinner"></div><div class="loading-label">Computing population metrics…</div></div>
+                <div class="card-error" id="error-population" style="display:none"></div>
                 <div class="card-body" id="results-population">
                     <div class="metrics-row" id="pop-metrics"></div>
                     <img id="population-plot" class="plot-img wide" alt="Population">
@@ -119,15 +169,18 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h2>Live Inference</h2>
-                <p>Upload a cell image for real-time classification</p>
+                <p>Upload citra sel untuk klasifikasi real-time + Grad-CAM</p>
             </div>
+
+            <!-- Try Sample button -->
+            <button class="btn-sample" id="btn-sample">🔬 Try Sample Image</button>
 
             <div class="upload-section" id="upload-area">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                         d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                 </svg>
-                <span>Drop image or click</span>
+                <span>Drop image or click to upload</span>
             </div>
             <input type="file" id="file-input" accept="image/*">
 
@@ -146,6 +199,12 @@
                 <div class="infer-confidence" id="confidence-text"></div>
                 <div class="infer-info" id="phase-info"></div>
                 <div class="infer-probs" id="prob-bars-container"></div>
+                <!-- Biological interpretation panel -->
+                <div class="bio-interp" id="bio-interp" style="display:none">
+                    <h4>🔬 Interpretasi Biologis</h4>
+                    <p id="bio-interp-text"></p>
+                    <div class="bio-visual-cue" id="bio-visual-cue"></div>
+                </div>
                 <div class="infer-gradcam">
                     <h4>Grad-CAM</h4>
                     <img id="gradcam-img" alt="Grad-CAM">
