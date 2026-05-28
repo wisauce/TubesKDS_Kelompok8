@@ -7,6 +7,9 @@ import os
 import sys
 import io
 import base64
+import hashlib
+import urllib.request
+from threading import Lock
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -37,7 +40,10 @@ from src.hmm import (
 from src.checkpoint_detector import run_checkpoint_analysis
 from src.population_analysis import compute_population_summary
 
-app = Flask(__name__, static_folder=os.path.join(PROJECT_ROOT, "frontend"))
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+app = Flask(__name__, static_folder=FRONTEND_DIR)
 
 # ── Global state ──────────────────────────────────────────
 model = None
@@ -48,6 +54,68 @@ trans_matrix_cache = None
 test_loader = None
 train_loader = None
 val_loader = None
+
+_init_lock = Lock()
+_initialized = False
+
+
+def _is_truthy_env(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default) not in {"0", "false", "False", "no", "NO"}
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _download_to(url: str, dst_path: str) -> None:
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    tmp_path = dst_path + ".tmp"
+    req = urllib.request.Request(url, headers={"User-Agent": "tubeskds2/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r, open(tmp_path, "wb") as f:
+        shutil_copyfileobj(r, f)
+    os.replace(tmp_path, dst_path)
+
+
+def shutil_copyfileobj(src, dst, length: int = 1024 * 1024) -> None:
+    while True:
+        buf = src.read(length)
+        if not buf:
+            break
+        dst.write(buf)
+
+
+def ensure_model_present() -> None:
+    """Ensure weights exist locally.
+
+    If weights are missing and MODEL_URL is set, download them to output/models.
+    Optional integrity check: MODEL_SHA256.
+    """
+
+    model_path = os.path.join(MODEL_DIR, "best_model.pth")
+    if os.path.exists(model_path):
+        expected = os.environ.get("MODEL_SHA256")
+        if expected:
+            actual = _sha256_file(model_path)
+            if actual.lower() != expected.lower():
+                raise RuntimeError("MODEL_SHA256 mismatch for existing model file")
+        return
+
+    url = os.environ.get("MODEL_URL")
+    if not url:
+        return
+
+    print(f"  INFO Downloading model weights from MODEL_URL -> {model_path}")
+    _download_to(url, model_path)
+
+    expected = os.environ.get("MODEL_SHA256")
+    if expected:
+        actual = _sha256_file(model_path)
+        if actual.lower() != expected.lower():
+            raise RuntimeError("MODEL_SHA256 mismatch after download")
 
 
 def load_model():
@@ -82,6 +150,39 @@ def load_ode_hmm():
     print("  OK ODE + HMM ready")
 
 
+def ensure_initialized() -> None:
+    """Initialize globals once.
+
+    Important: this must run under Gunicorn too (import path `api.app:app`).
+    """
+    global _initialized
+    if _initialized:
+        return
+    with _init_lock:
+        if _initialized:
+            return
+
+        # Ensure weights exist (optional download)
+        try:
+            ensure_model_present()
+        except Exception as e:
+            print(f"  WARNING: Could not ensure model file: {e}")
+
+        load_model()
+
+        if _is_truthy_env("LOAD_DATA", "1"):
+            load_data()
+        else:
+            print("  INFO Skipping dataset load (LOAD_DATA=0)")
+
+        if _is_truthy_env("LOAD_ODE_HMM", "1"):
+            load_ode_hmm()
+        else:
+            print("  INFO Skipping ODE/HMM init (LOAD_ODE_HMM=0)")
+
+        _initialized = True
+
+
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
@@ -100,6 +201,10 @@ def fig_to_base64(fig):
 
 # ═══ STATIC ROUTES ════════════════════════════════════════
 
+@app.route("/assets/<path:path>")
+def assets(path):
+    return send_from_directory(ASSETS_DIR, path)
+
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
@@ -113,6 +218,7 @@ def static_files(path):
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
+    ensure_initialized()
     if model is None:
         return jsonify({"error": "Model not loaded. Run main.py first."}), 503
     if "image" not in request.files:
@@ -164,6 +270,7 @@ def predict():
 
 @app.route("/api/dashboard/cnn")
 def dashboard_cnn():
+    ensure_initialized()
     if model is None or test_loader is None:
         return jsonify({"error": "Model or data not loaded."}), 503
 
@@ -252,6 +359,7 @@ def dashboard_cnn():
 
 @app.route("/api/dashboard/gradcam")
 def dashboard_gradcam():
+    ensure_initialized()
     if model is None or test_loader is None:
         return jsonify({"error": "Model or data not loaded."}), 503
 
@@ -286,6 +394,7 @@ def dashboard_gradcam():
 
 @app.route("/api/dashboard/ode")
 def dashboard_ode():
+    ensure_initialized()
     if ode_results_cache is None:
         return jsonify({"error": "ODE not computed."}), 503
 
@@ -316,6 +425,7 @@ def dashboard_ode():
 
 @app.route("/api/dashboard/hmm")
 def dashboard_hmm():
+    ensure_initialized()
     if hmm_model is None:
         return jsonify({"error": "HMM not ready."}), 503
 
@@ -365,6 +475,7 @@ def dashboard_hmm():
 
 @app.route("/api/dashboard/checkpoint")
 def dashboard_checkpoint():
+    ensure_initialized()
     if hmm_model is None:
         return jsonify({"error": "HMM not ready."}), 503
 
@@ -412,6 +523,7 @@ def dashboard_checkpoint():
 
 @app.route("/api/dashboard/population")
 def dashboard_population():
+    ensure_initialized()
     if model is None or test_loader is None:
         return jsonify({"error": "Model or data not loaded."}), 503
 
@@ -462,6 +574,7 @@ def dashboard_population():
 @app.route("/api/sample_image")
 def sample_image():
     """Return a random image from the test set for the Try Sample Image button."""
+    ensure_initialized()
     if test_loader is None:
         return jsonify({"error": "Data not loaded."}), 503
     import random
@@ -493,6 +606,7 @@ def sample_image():
 
 @app.route("/api/status")
 def status():
+    ensure_initialized()
     return jsonify({
         "status": "ok",
         "model_loaded": model is not None,
@@ -511,10 +625,12 @@ if __name__ == "__main__":
     print("  Cell Cycle Intelligence — Web Server")
     print("=" * 50)
 
-    load_model()
-    load_data()
-    load_ode_hmm()
+    ensure_initialized()
 
-    print(f"\n  http://localhost:5000")
-    print(f"  Ctrl+C to stop.\n")
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # macOS often reserves port 5000 for AirPlay/AirTunes.
+    port = int(os.environ.get("PORT", "5050"))
+    host = os.environ.get("HOST", "0.0.0.0")
+
+    print(f"\n  http://localhost:{port}")
+    print("  Ctrl+C to stop.\n")
+    app.run(host=host, port=port, debug=False)

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Large generated / data artifacts (mount at runtime instead)
+output/
+data/BBBC048_raw/
+data/synthetic/
+
+# Latex build artifacts
+laporan/**/*.aux
+laporan/**/*.log
+laporan/**/*.out
+laporan/**/*.toc
+laporan/**/*.synctex.gz

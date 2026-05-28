@@ -57,6 +57,24 @@ function hideCardError(errorId) {
     if (el) el.style.display = "none";
 }
 
+// ═══ STATIC DASHBOARD FALLBACK ═══════════════════════════
+
+const STATIC_MANIFEST_URL = "/assets/plots/manifest.json";
+let _staticManifest = null;
+
+async function getStaticManifest() {
+    if (_staticManifest) return _staticManifest;
+    const res = await fetch(STATIC_MANIFEST_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Static manifest not available (HTTP ${res.status})`);
+    _staticManifest = await res.json();
+    return _staticManifest;
+}
+
+function setImgSrc(id, src) {
+    const el = document.getElementById(id);
+    if (el) el.src = src;
+}
+
 // ═══ DASHBOARD: Run Full Simulation (SEQUENTIAL) ══════════
 
 document.getElementById("btn-run-all").addEventListener("click", runFullSimulation);
@@ -117,7 +135,27 @@ async function runCNN() {
         document.getElementById("cnn-curves").src = "data:image/png;base64," + data.training_curves;
         show("results-cnn");
     } catch(e) {
-        showCardError("error-cnn", `Gagal memuat CNN: ${e.message}`);
+        // Fallback: static plots + metrics (inference-only deployment)
+        try {
+            const m = await getStaticManifest();
+            const cnn = m.cnn;
+            document.getElementById("cnn-metrics").innerHTML = `
+                <div class="metric-card"><div class="value" style="color:#00E676">${(cnn.test_accuracy*100).toFixed(1)}%</div><div class="label">Test Accuracy</div><div class="sublabel">snapshot</div></div>
+                <div class="metric-card"><div class="value">${cnn.total_samples}</div><div class="label">Test Samples</div><div class="sublabel">snapshot</div></div>
+                <div class="metric-card"><div class="value">${cnn.train_epochs}</div><div class="label">Epochs</div></div>
+                <div class="metric-card"><div class="value" style="color:#448AFF">${cnn.model_params}</div><div class="label">Parameters</div></div>
+            `;
+
+            const insightEl = document.getElementById("cnn-insight");
+            insightEl.innerHTML = `📌 Snapshot plot statis (tanpa evaluasi live). Generated: <code>${m.generated_at || "-"}</code>`;
+            insightEl.style.display = "block";
+
+            setImgSrc("cnn-confusion", `/assets/plots/${cnn.images.confusion}`);
+            setImgSrc("cnn-curves", `/assets/plots/${cnn.images.curves}`);
+            show("results-cnn");
+        } catch (fallbackErr) {
+            showCardError("error-cnn", `Gagal memuat CNN: ${e.message}`);
+        }
     } finally { hide("loading-cnn"); }
 }
 
@@ -132,7 +170,13 @@ async function runGradCAM() {
         document.getElementById("gradcam-batch").src = "data:image/png;base64," + data.gradcam_plot;
         show("results-gradcam");
     } catch(e) {
-        showCardError("error-gradcam", `Gagal memuat Grad-CAM: ${e.message}`);
+        try {
+            const m = await getStaticManifest();
+            setImgSrc("gradcam-batch", `/assets/plots/${m.gradcam.images.batch}`);
+            show("results-gradcam");
+        } catch {
+            showCardError("error-gradcam", `Gagal memuat Grad-CAM: ${e.message}`);
+        }
     } finally { hide("loading-gradcam"); }
 }
 
@@ -295,7 +339,21 @@ async function runPopulation() {
         `;
         show("results-population");
     } catch(e) {
-        showCardError("error-population", `Gagal memuat populasi: ${e.message}`);
+        try {
+            const m = await getStaticManifest();
+            const p = m.population;
+            document.getElementById("pop-metrics").innerHTML = `
+                <div class="metric-card"><div class="value">${p.total_cells}</div><div class="label">Cells</div><div class="sublabel">snapshot</div></div>
+                <div class="metric-card"><div class="value" style="color:#FF1744">${(p.mitotic_index*100).toFixed(1)}%</div><div class="label">Mitotic Index</div><div class="sublabel">lit: 5–10%</div></div>
+                <div class="metric-card"><div class="value" style="color:#448AFF">${(p.growth_fraction*100).toFixed(1)}%</div><div class="label">Growth Fraction</div></div>
+                <div class="metric-card"><div class="value" style="color:#E040FB">${p.doubling_time_hours.toFixed(1)}h</div><div class="label">Doubling Time</div><div class="sublabel">lit: ~24h</div></div>
+            `;
+            setImgSrc("population-plot", `/assets/plots/${p.images.plot}`);
+            document.getElementById("pop-clinical").innerHTML = `<h4>${p.status}</h4><p>${p.clinical_significance}</p>`;
+            show("results-population");
+        } catch {
+            showCardError("error-population", `Gagal memuat populasi: ${e.message}`);
+        }
     } finally { hide("loading-population"); }
 }
 
@@ -405,10 +463,19 @@ async function checkStatus() {
         const text = document.getElementById("status-text");
         const banner = document.getElementById("setup-banner");
 
-        const allReady = data.model_loaded && data.ode_ready && data.hmm_ready && data.data_loaded;
-        if (allReady) {
+        const inferenceReady = data.model_loaded;
+        const dashboardReady = data.model_loaded && data.ode_ready && data.hmm_ready && data.data_loaded;
+
+        if (dashboardReady) {
             dot.className = "status-dot online";
             text.textContent = `Ready (${data.device})`;
+            if (banner) banner.style.display = "none";
+        } else if (inferenceReady) {
+            dot.className = "status-dot online";
+            const missing = [];
+            if (!data.data_loaded) missing.push("dataset");
+            if (!data.ode_ready || !data.hmm_ready) missing.push("ODE/HMM");
+            text.textContent = missing.length ? `Inference ready (missing: ${missing.join(", ")})` : `Inference ready (${data.device})`;
             if (banner) banner.style.display = "none";
         } else {
             dot.className = "status-dot offline";
