@@ -33,6 +33,7 @@ output/
 # ── Model weights ────────────────────────────────────────
 *.pth
 *.pt
+!output/models/best_model.pth
 *.onnx
 *.h5
 
