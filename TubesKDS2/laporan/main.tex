@@ -11,6 +11,13 @@
 \usepackage{enumitem}
 \usepackage{multirow}
 
+% Tighter float spacing (helps meet strict page limits)
+\setlength{\textfloatsep}{6pt plus 1pt minus 2pt}
+\setlength{\floatsep}{6pt plus 1pt minus 2pt}
+\setlength{\intextsep}{6pt plus 1pt minus 2pt}
+\setlength{\abovecaptionskip}{2pt}
+\setlength{\belowcaptionskip}{2pt}
+
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue!70!black}
 
 \begin{document}
@@ -19,7 +26,7 @@
 
 \author{
 \IEEEauthorblockN{Wisa Ahmaduta Dinutama}
-\IEEEauthorblockA{18122003@std.stei.itb.ac.id\\Institut Teknologi Bandung}
+\IEEEauthorblockA{18223003@std.stei.itb.ac.id\\Institut Teknologi Bandung}
 \and
 \IEEEauthorblockN{Stanislaus Ardy Bramantyo}
 \IEEEauthorblockA{18223057@std.stei.itb.ac.id\\Institut Teknologi Bandung}
@@ -34,7 +41,7 @@
 \maketitle
 
 \begin{abstract}
-Siklus sel merupakan proses fundamental yang mengatur pembelahan sel, dan disregulasinya merupakan ciri khas kanker. Penelitian ini mengembangkan sistem analisis siklus sel tiga lapis yang mengintegrasikan \textit{deep learning} dengan validasi biologis. Layer~1 menggunakan Convolutional Neural Network (ResNet-18) untuk klasifikasi fase dari citra mikroskopi fluoresensi dataset BBBC048 (Broad Institute). Layer~2 menerapkan model Ordinary Differential Equation (ODE) Tyson-Novak untuk memodelkan dinamika Cyclin B/CDK1/APC dan menurunkan matriks transisi untuk Hidden Markov Model (HMM) yang mengoreksi prediksi temporal. Layer~3 mengimplementasikan detektor anomali berbasis aturan biologi checkpoint (G1/S restriction point, G2/M DNA damage, spindle assembly). Hasil eksperimen menunjukkan koreksi HMM meningkatkan akurasi sekuensial sebesar $\sim$15\% dibandingkan CNN saja, dan sistem mampu mendeteksi anomali checkpoint yang relevan secara klinis. Sistem dilengkapi aplikasi web interaktif untuk inferensi real-time dan visualisasi pipeline.
+Siklus sel merupakan proses fundamental yang mengatur pembelahan sel, dan disregulasinya merupakan ciri khas kanker. Penelitian ini mengembangkan sistem analisis siklus sel tiga lapis yang mengintegrasikan \textit{deep learning} dengan validasi biologis. Layer~1 menggunakan Convolutional Neural Network (ResNet-18) untuk klasifikasi fase dari citra mikroskopi fluoresensi dataset BBBC048 (Broad Institute). Pada konfigurasi training 5 epoch, model mencapai akurasi test set sebesar 85\%. Layer~2 menerapkan model Ordinary Differential Equation (ODE) Tyson-Novak untuk memodelkan dinamika Cyclin B/CDK1/APC dan menurunkan matriks transisi untuk Hidden Markov Model (HMM) yang mengoreksi prediksi temporal. Layer~3 mengimplementasikan detektor anomali berbasis aturan biologi checkpoint (G1/S restriction point, G2/M DNA damage, spindle assembly). Hasil eksperimen menunjukkan koreksi HMM meningkatkan akurasi sekuensial sebesar $\sim$15\% dibandingkan CNN saja, dan sistem mampu mendeteksi anomali checkpoint yang relevan secara klinis. Sistem dilengkapi aplikasi web interaktif untuk inferensi real-time dan visualisasi pipeline.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -65,7 +72,7 @@ Klasifikasi otomatis fase siklus sel dari citra mikroskopi telah berkembang dari
 
 Di sisi lain, model matematika siklus sel berbasis ODE telah dikembangkan secara ekstensif. Model Tyson-Novak~\cite{tyson2001} menangkap esensi osilator Cyclin B/CDK1/APC melalui sistem persamaan diferensial dengan \textit{ultrasensitive switches} (fungsi Goldbeter-Koshland). Model ini mampu mereproduksi perilaku bistabil dan osilasi yang menjadi dasar progresi siklus sel.
 
-Hidden Markov Model (HMM) telah menjadi \textit{workhorse} dalam bioinformatika untuk analisis sekuens~\cite{durbin1998}, namun penerapannya untuk koreksi temporal pada klasifikasi citra siklus sel --- khususnya dengan matriks transisi yang diturunkan dari model biofisika --- belum dieksplorasi.
+Hidden Markov Model (HMM) telah menjadi \textit{workhorse} dalam bioinformatika untuk analisis sekuens~\cite{durbin1998}, namun penerapannya untuk koreksi temporal pada klasifikasi citra siklus sel --- khususnya dengan matriks transisi yang diturunkan dari model biofisika --- sejauh pengetahuan penulis, belum dieksplorasi secara eksplisit dalam literatur yang ditinjau.
 
 \subsubsection{Gap dalam Literatur}
 Berdasarkan tinjauan pustaka di atas, terdapat tiga gap mendasar yang belum ditangani:
@@ -289,7 +296,9 @@ Random seed & 42 (reprodusibilitas) \\
 
 \subsection{Evaluasi CNN (Layer 1)}
 
-Model ResNet-18 yang di-\textit{fine-tune} mencapai akurasi test set sebesar $\sim$85--92\% (bergantung pada jumlah epoch dan ketersediaan GPU). Gambar~\ref{fig:cm} menunjukkan confusion matrix pada test set.
+Pada konfigurasi training 5 epoch, model mencapai akurasi test set sebesar 85\%. Gambar~\ref{fig:cm} menunjukkan confusion matrix pada test set. 
+
+Evaluasi kuantitatif per-kelas menghasilkan F1-score yang bervariasi: G1 mencapai 0,806, S sebesar 0,619, G2 sebesar 0,555, Prophase sebesar 0,763, dan Telophase mencapai nilai sempurna 1,000. Sementara itu, Metaphase dan Anaphase memiliki skor nol akibat ketidakseimbangan kelas ekstrem pada subset evaluasi baseline 5 epoch ini.
 
 \begin{figure}[!t]
     \centering
@@ -351,7 +360,7 @@ Perilaku ini konsisten dengan eksperimen biokimia pada ekstrak Xenopus~\cite{tys
 
 \subsection{Koreksi Temporal HMM (Layer 2b) --- \textit{Proof-of-Concept} pada Simulasi}
 
-\textit{Catatan:} Evaluasi HMM dilakukan pada \textbf{simulasi time-lapse terkontrol}, bukan pada data time-lapse nyata, karena dataset BBBC048 merupakan snapshot cross-sectional (bukan sekuens temporal). Simulasi dilakukan dengan mensintesis sekuens fase dari ODE ground-truth dan menambahkan noise klasifikasi 18\% (menggantikan prediksi dengan fase acak) untuk merepresentasikan error CNN yang realistis. Ini merupakan \textit{proof-of-concept} yang mendemonstrasikan prinsip koreksi HMM sebelum validasi pada data time-lapse nyata.
+\textit{Catatan:} Evaluasi HMM dilakukan pada \textbf{simulasi time-lapse terkontrol} (BBBC048 adalah snapshot cross-sectional, bukan sekuens temporal). Sekuens ground-truth disintesis dari ODE, dan error CNN disimulasikan dengan noise klasifikasi 18\%. Ini merupakan \textit{proof-of-concept} sebelum validasi pada data time-lapse nyata.
 
 Gambar~\ref{fig:hmm} menunjukkan perbandingan antara ground truth, prediksi CNN-only (dengan 18\% noise rate untuk mensimulasikan error klasifikasi), dan hasil koreksi HMM pada simulasi time-lapse 150 frame (30 jam).
 
@@ -384,6 +393,8 @@ HMM-corrected & $\sim$97\% & 0--2 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+Perlu dicatat bahwa hasil pada Tabel~\ref{tab:hmm_result} diperoleh dari controlled simulation, bukan dari data time-lapse eksperimental nyata. Noise rate 18\% dipilih berdasarkan estimasi error rate CNN pada fase interphase yang sulit dibedakan. Hasil ini bersifat proof-of-concept yang menunjukkan potensi koreksi HMM; validasi pada data time-lapse nyata diperlukan untuk konfirmasi empiris.
 
 Penting dicatat bahwa matriks transisi berasal dari model biofisika (ODE), bukan dari data training. Ini berarti HMM tidak memerlukan data time-lapse berlabel untuk training --- constraint biologis di-\textit{hardcode} melalui model matematika.
 
@@ -453,7 +464,7 @@ Penelitian ini mendemonstrasikan bahwa integrasi \textit{deep learning} dengan v
 
 \begin{enumerate}[noitemsep,topsep=3pt]
     \item \textbf{Hybrid CNN + ODE-informed HMM untuk validasi urutan biologis:} Arsitektur tiga lapis bidireksional menunjukkan sinergi antara computer science dan biologi --- CNN mengekstrak informasi dari citra (CS$\rightarrow$Bio), sementara model ODE Tyson-Novak dan aturan checkpoint memberikan constraint biologis yang meningkatkan kualitas prediksi (Bio$\rightarrow$CS). Ini berbeda mendasar dari HMM konvensional yang mempelajari matriks transisi dari data, sehingga tidak memerlukan data time-lapse berlabel untuk training.
-    \item \textbf{Peningkatan konsistensi sekuens +$\sim$15\% pada proof-of-concept simulasi:} Koreksi HMM dengan matriks transisi dari ODE meningkatkan akurasi sekuensial dari $\sim$82\% (CNN-only) menjadi $\sim$97\%, dan mengurangi transisi tidak valid sebesar $\sim$90\%, pada simulasi terkontrol dengan noise rate 18\%. Validasi pada data time-lapse nyata merupakan langkah penelitian berikutnya.
+    \item \textbf{Demonstrasi proof-of-concept peningkatan akurasi sekuensial $\sim$15\% melalui koreksi HMM pada controlled simulation, dengan matriks transisi yang diturunkan dari model biofisika Tyson-Novak --- menunjukkan potensi pendekatan biologically-informed yang perlu divalidasi lebih lanjut pada data time-lapse nyata.}
     \item \textbf{Pipeline interpretasi biologis end-to-end untuk validasi klinis:} Deteksi anomali checkpoint berbasis aturan biologi (tanpa data anomali berlabel) berhasil membedakan artefak klasifikasi (CNN: $>$20 anomali) dari anomali biologis genuine (HMM: $<$5 anomali), disertai interpretasi mekanisme molekuler otomatis. Analisis populasi (MI $\sim$5--8\%, doubling time $\sim$24 jam) tervalidasi konsisten dengan literatur sel Jurkat~\cite{eulenberg2017}.
     \item \textbf{Validasi melalui Grad-CAM} mengkonfirmasi bahwa CNN tidak melakukan \textit{shortcut learning}, melainkan memperhatikan fitur morfologis bermakna secara biologis: kondensasi kromosom (Prophase), metaphase plate (Metaphase), pemisahan kromatid (Anaphase), dan morfologi nukleus untuk fase interphase.
     \item \textbf{Aplikasi web interaktif} yang mengintegrasikan seluruh pipeline untuk demonstrasi dan analisis real-time, memungkinkan inferensi single-cell dengan Grad-CAM overlay serta visualisasi dinamika ODE dan koreksi HMM.

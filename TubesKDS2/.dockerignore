@@ -15,9 +15,11 @@ venv/
 # Git
 .git/
 
-# Large generated / data artifacts (mount at runtime instead)
-output/
+# Large generated / data artifacts
+# Keep output/models/ (contains trained weights) — exclude the rest
+output/plots/
 data/BBBC048_raw/
+data/BBBC048v1.zip
 data/synthetic/
 
 # Latex build artifacts

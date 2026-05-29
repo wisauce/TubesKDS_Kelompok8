@@ -27,9 +27,13 @@ RUN pip install -r /app/requirements.txt
 
 COPY . /app
 
-# Default port (can be overridden by platform)
+# Default port and settings
+# LOAD_DATA=0  → skip dataset loading (inference-only, no need for test set)
+# LOAD_ODE_HMM=1 → initialize ODE + HMM for dashboard simulation
 ENV PORT=5050 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    LOAD_DATA=0 \
+    LOAD_ODE_HMM=1
 
 EXPOSE 5050
 
