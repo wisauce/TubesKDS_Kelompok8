@@ -24,27 +24,31 @@ Sistem ini terdiri dari tiga *layer* utama:
 - **Analisis Populasi:** Estimasi *Mitotic Index*, *Growth Fraction*, dan distribusi fase.
 - **Web Dashboard Interaktif:** Menyatukan keseluruhan alur evaluasi di antarmuka web yang rapi (menggunakan Flask).
 
-## 🛠️ Cara Menjalankan Aplikasi Web
+## 👨‍🏫 Flow Tes untuk Asisten
 
-Aplikasi ini sudah dilengkapi dengan web *dashboard* berbasis Flask yang siap digunakan.
+buka Terminal
 
-### Prasyarat
-Pastikan Python 3.10+ sudah terinstal, lalu *install* dependensi yang dibutuhkan (biasanya sudah diatur pada *virtual environment* Anda).
-
-### Menjalankan Server Lokal
-Untuk menyalakan *dashboard* web, Anda bisa mengeksekusi *server* Flask langsung:
+### Cara 1: Lewat Python Virtual Environment
 
 ```bash
-# Jika menggunakan virtual environment
-.venv/bin/python3 TubesKDS2/api/app.py
+git clone https://github.com/wisauce/TubesKDS_Kelompok8.git
+cd TubesKDS_Kelompok8
+python3 -m venv .venv
+source .venv/bin/activate  # (atau .venv\Scripts\activate kalau asdos pake Windows)
+pip install -r TubesKDS2/requirements.txt
+python3 TubesKDS2/api/app.py
 ```
-> Atau sesuaikan lokasi *interpreter* `python` Anda ke skrip `TubesKDS2/api/app.py`.
 
-Setelah *server* berjalan, buka *browser* Anda dan arahkan ke:
-👉 **http://localhost:5050**
+### Cara 2: lewat Docker
 
-### Opsi Docker (Alternatif)
-Proyek ini juga mensupport kontainerisasi menggunakan Docker. Anda dapat merujuk pada `README_DOCKER.md` untuk langkah-langkah me-*build* dan me-*run* aplikasi menggunakan *container*.
+```bash
+git clone https://github.com/wisauce/TubesKDS_Kelompok8.git
+cd TubesKDS_Kelompok8
+docker build -t cell-cycle-app -f TubesKDS2/Dockerfile .
+docker run -p 5050:5050 cell-cycle-app
+```
+
+setelah asdos jalankan salah 1 dari 2 cara di atas, bisa langsung buka http://localhost:5050 di browser dan BOOM, web dashboard langsung menyala menggunakan model
 
 ## 📄 Laporan dan Makalah
 Detail implementasi metodologi, metrik evaluasi model CNN, dan hasil analisis lengkap dapat ditemukan pada laporan berformat LaTeX IEEEtran yang terdapat pada direktori `TubesKDS2/laporan/main.pdf`.
